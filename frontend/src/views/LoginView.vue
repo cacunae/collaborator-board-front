@@ -17,11 +17,11 @@ const handleSubmit = () => {
     <div class="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-xl border border-gray-700">
       
       <h1 class="mb-6 text-2xl font-bold text-center text-white">
-        Collab Board
+        Pizarra Loka
       </h1>
       
       <p class="mb-6 text-center text-gray-300">
-        Ingresa tu nombre para unirte a la sesión.
+        Solo gente con nombre chistoso puede entrar
       </p>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
@@ -50,7 +50,7 @@ const handleSubmit = () => {
                  transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           :disabled="!name.trim()"
         >
-          Entrar al Tablero
+          Entrar a la pizarra mas pulenta del mundo 
         </button>
       </form>
     </div>

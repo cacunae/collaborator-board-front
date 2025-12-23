@@ -3,24 +3,27 @@ import { ref } from 'vue';
 import socketGateway from '../services/socketGateway';
 import type { User } from '../types';
 
+
 export const useUserStore = defineStore('user', () => {
     // estado
-    const currentUser = ref<string>('');
+    const currentUser = ref('');
     const connectedUsers = ref<User[]>([]);
-
+    const isLogged = ref(false);
     // acciones
-    const login = (name: string) => {
-        if (!name.trim()) return;
-        currentUser.value = name;
-        socketGateway.init('http://localhost:3001');
-        socketGateway.emit('user:join', { name });
-        initListeners();
-    };
 
     const initListeners = () => {
         socketGateway.on('presence:users', (data: { users: User[] }) => {
-            connectedUsers.value = data.users;
+        console.log("Lista de usuarios recibida:", data.users);
+        connectedUsers.value = data.users;
         });
+    };
+
+    const login = (name: string) => {
+        if (!name.trim()) return;
+        currentUser.value = name;
+        socketGateway.init();
+        socketGateway.emit('user:join', { name });
+        initListeners();
     };
 
     return {

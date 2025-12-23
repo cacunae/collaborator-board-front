@@ -5,8 +5,15 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  test: {
-    environment: 'jsdom',
-    globals: true,
-  }
+  server: {
+    allowedHosts: true, 
+    proxy: {
+      '/socket.io': {
+        target: 'http://localhost:3001', // Tu puerto de backend
+        ws: true, // ¡IMPORTANTE! Habilita WebSockets
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
 })

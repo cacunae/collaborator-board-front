@@ -1,97 +1,69 @@
-import { io, Socket } from "socket.io-client";
+import { io, Socket } from 'socket.io-client';
 
-// se usa patrón singleton para tener una única instancia de conexión
+
+const BACKEND_URL = 'https://shaina-colacobiotic-kane.ngrok-free.dev'; 
+
 class SocketGateway {
   private socket: Socket | null = null;
-  private static instance: SocketGateway;
 
-  // constructor privado para evitar que se instancie
-  private constructor() {}
+  init() {
+    if (this.socket) return;
 
-  public static getInstance(): SocketGateway {
-    if (!SocketGateway.instance) {
-      SocketGateway.instance = new SocketGateway();
-    }
-    return SocketGateway.instance;
-  }
+    console.log(` Conectando a Socket.IO en: ${BACKEND_URL}`);
 
-  /**
-   * iniciar conexión al servidor
-   * @param url 
-   */
-  public init(url: string): void {
-    if (this.socket) {
-      console.warn("SocketGateway: La conexión ya estaba inicializada.");
-      return;
-    }
+    this.socket = io(BACKEND_URL, {
 
-    this.socket = io(url, {
-      transports: ["websocket"], 
+      transports: ['polling', 'websocket'], 
+  
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      extraHeaders: {
+        "ngrok-skip-browser-warning": "true"
+      }
     });
 
-    this.setupBaseListeners();
-  }
-
-  /**
-   * configuracion de listeners
-   */
-  private setupBaseListeners() {
-    if (!this.socket) return;
-
+    // --- Listeners de Diagnóstico ---
+    
     this.socket.on("connect", () => {
-      console.log("conectado al servidor de sockets:", this.socket?.id);
+      console.log("Socket Conectado! ID:", this.socket?.id);
     });
 
-    this.socket.on("disconnect", () => {
-      console.log("desconectado del servidor.");
+    this.socket.on("connect_error", (err) => {
+      console.error("Error de conexión:", err.message);
     });
 
-    this.socket.on("server:error", (error: { message: string }) => {
-      console.error("error del Servidor:", error.message);
+    this.socket.on("disconnect", (reason) => {
+      console.warn("Desconectado:", reason);
     });
   }
 
-  /**
-   * método genérico para emitir datos
-   */
-  public emit(event: string, payload?: any): void {
+  // Método genérico para enviar eventos
+  emit(event: string, payload?: any) {
     if (!this.socket) {
-      console.error("SocketGateway: Intento de emitir sin conexión inicializada.");
+      console.warn("Intentando emitir sin conexión:", event);
       return;
     }
     this.socket.emit(event, payload);
   }
 
-  /**
-   * método genérico para escuchar datos
-   */
-  public on(event: string, callback: (...args: any[]) => void): void {
-    if (!this.socket) {
-      console.error("SocketGateway: Intento de escuchar sin conexión inicializada.");
-      return;
-    }
-    this.socket.on(event, callback);
+  // Método genérico para escuchar eventos
+  on(event: string, callback: (...args: any[]) => void) {
+    if (!this.socket) this.init(); // Auto-iniciar si hace falta
+    this.socket?.on(event, callback);
   }
 
-  /**
-   método para dejar de escuchar datos
-   */
-  public off(event: string): void {
-    if (!this.socket) return;
-    this.socket.off(event);
+  // Método para dejar de escuchar (limpieza)
+  off(event: string) {
+    this.socket?.off(event);
   }
 
-  /**
-   * cerrar conexión
-   */
-  public disconnect(): void {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
+  // Obtener ID del socket actual (útil para lógica de "quién soy")
+  getId() {
+    return this.socket?.id;
   }
 }
 
-// se exporta la instancia unica siguiendo el patrón singleton
-export default SocketGateway.getInstance();
+// Exportamos una instancia única (Singleton)
+export default new SocketGateway();

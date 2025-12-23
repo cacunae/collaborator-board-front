@@ -6,79 +6,130 @@ import type { Note } from '../../types';
 const props = defineProps<{ note: Note }>();
 const noteStore = useNoteStore();
 
-const isSomeoneElseTyping = computed(() => {
-  const typerName = noteStore.activeTypers[props.note.id];
-  return typerName ? typerName : null;
-});
-
-const onFocus = () => {
-  console.log('Enviando el el evento typing', props.note.id);
-  noteStore.setTyping(props.note.id, true);};
-const onBlur = () => {
-  console.log('Enviando el el evento typing', props.note.id);
-  noteStore.setTyping(props.note.id, false)};
-
-// estado local
+// --- Estado Local ---
 const isDragging = ref(false);
-const showComments = ref(false); 
+const showComments = ref(false);
 const newCommentText = ref('');
 const offset = ref({ x: 0, y: 0 });
 const localX = ref(props.note.x);
 const localY = ref(props.note.y);
 
-//  lógica de drag and drop 
-const startDrag = (event: MouseEvent) => {
-  if ((event.target as HTMLElement).closest('input, textarea, button, .no-drag')) return;
-  
-  isDragging.value = true;
-  offset.value = { x: event.clientX - localX.value, y: event.clientY - localY.value };
-  
-  window.addEventListener('mousemove', onDrag);
-  window.addEventListener('mouseup', stopDrag);
+// Computed para saber si alguien escribe
+const isSomeoneElseTyping = computed(() => {
+  const typerName = noteStore.activeTypers[props.note.id];
+  return typerName ? typerName : null;
+});
+
+// --- Lógica de Arrastre (Drag & Drop Híbrido) ---
+
+// 1. Función auxiliar para normalizar coordenadas y arreglar el error 
+const getCoords = (event: MouseEvent | TouchEvent) => {
+  if ('touches' in event) {
+    // Es un evento Touch
+    const touch = event.touches[0];
+    if (!touch) return { x: 0, y: 0 }; // Protección contra undefined
+    return {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  } else {
+    // Es un evento Mouse
+    return {
+      x: event.clientX,
+      y: event.clientY
+    };
+  }
 };
 
-const onDrag = (event: MouseEvent) => {
+// 2. startDrag acepta ambos tipos de evento
+const startDrag = (event: MouseEvent | TouchEvent) => {
+  // Evitar arrastre si tocamos botones o inputs
+  if ((event.target as HTMLElement).closest('input, textarea, button, .no-drag')) return;
+
+  isDragging.value = true;
+  
+  const coords = getCoords(event);
+  
+  offset.value = {
+    x: coords.x - localX.value,
+    y: coords.y - localY.value
+  };
+
+  // 3. CASTING IMPORTANTE: 'as EventListener'
+  // Esto soluciona el error "No overload matches this call".
+  // Le decimos a TS: "Confía en mí, esta función maneja eventos genéricos".
+  window.addEventListener('mousemove', onDrag as EventListener);
+  window.addEventListener('touchmove', onDrag as EventListener, { passive: false });
+  
+  window.addEventListener('mouseup', stopDrag);
+  window.addEventListener('touchend', stopDrag);
+};
+
+const onDrag = (event: Event) => {
   if (!isDragging.value) return;
-  localX.value = event.clientX - offset.value.x;
-  localY.value = event.clientY - offset.value.y;
+
+
+  const dragEvent = event as MouseEvent | TouchEvent;
+
+
+  if ('touches' in dragEvent) {
+    dragEvent.preventDefault();
+  }
+
+  const coords = getCoords(dragEvent);
+  localX.value = coords.x - offset.value.x;
+  localY.value = coords.y - offset.value.y;
 };
 
 const stopDrag = async () => {
   if (!isDragging.value) return;
-  window.removeEventListener('mousemove', onDrag);
+  
+  // Limpieza usando casting también
+  window.removeEventListener('mousemove', onDrag as EventListener);
+  window.removeEventListener('touchmove', onDrag as EventListener);
   window.removeEventListener('mouseup', stopDrag);
-  noteStore.updateNote({ id: props.note.id, x: localX.value, y: localY.value });
+  window.removeEventListener('touchend', stopDrag);
+
+  // Actualización Optimista
+  noteStore.updateNote({
+    id: props.note.id,
+    x: localX.value,
+    y: localY.value
+  });
+  
   await nextTick();
   isDragging.value = false;
 };
 
-// lógica de edición 
+// --- Resto de lógica (Edición, Comentarios) ---
 const updateContent = (field: 'title' | 'content', value: string) => {
   if (props.note[field] === value) return;
   noteStore.updateNote({ id: props.note.id, [field]: value });
 };
 
-// lógica de comentarios
 const sendComment = () => {
   if (!newCommentText.value.trim()) return;
   noteStore.addComment(props.note.id, newCommentText.value);
   newCommentText.value = '';
 };
 
+const onFocus = () => noteStore.setTyping(props.note.id, true);
+const onBlur = () => noteStore.setTyping(props.note.id, false);
+
 const stylePosition = computed(() => ({
   transform: `translate(${isDragging.value ? localX.value : props.note.x}px, ${isDragging.value ? localY.value : props.note.y}px)`,
 }));
 
-// formatear fecha simple
 const formatDate = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 </script>
 
 <template>
   <div
-    class="absolute w-72 bg-yellow-200 rounded-lg shadow-xl flex flex-col transition-shadow hover:shadow-2xl"
+    class="sticky-note absolute w-72 bg-yellow-200 rounded-lg shadow-xl flex flex-col transition-shadow hover:shadow-2xl"
     :class="{ 'z-50 ring-2 ring-blue-500 cursor-grabbing': isDragging, 'z-10 cursor-grab': !isDragging }"
     :style="stylePosition"
     @mousedown="startDrag"
+    @touchstart="startDrag"
   >
       <div class="flex justify-between items-center px-3 py-2 border-b border-yellow-300/50 bg-yellow-300/30 rounded-t-lg">
         <div class="flex items-center gap-1 max-w-[120px]">

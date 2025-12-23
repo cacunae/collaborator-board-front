@@ -12,6 +12,15 @@ onMounted(() => {
 // las notas se crean con doble click
 const handleDoubleClick = (e: MouseEvent) => {
   if (e.target !== e.currentTarget) return;
+  const target = e.target as HTMLElement;
+  if (
+    target.closest('.sticky-note') || 
+    target.closest('button') || 
+    target.closest('input') || 
+    target.closest('textarea')
+  ) {
+    return;
+  }
 
   noteStore.createNote({
     title: 'Nueva Nota',
